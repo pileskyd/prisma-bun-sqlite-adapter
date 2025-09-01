@@ -1,269 +1,268 @@
 import {
-  ArgType,
-  ColumnType,
-  ColumnTypeEnum,
-  Debug,
+	type ArgType,
+	type ColumnType,
+	ColumnTypeEnum,
+	Debug,
 } from "@prisma/driver-adapter-utils";
 
 const debug = Debug("prisma:driver-adapter:bun-sqlite:conversion");
 
 type Value = null | string | number | bigint | boolean | Uint8Array; // Changed ArrayBuffer to Uint8Array as bun:sqlite returns Blobs as Uint8Array
 export type Row = {
-  /** Number of columns in this row.
-   *
-   * All rows in one {@link ResultSet} have the same number and names of columns.
-   */
-  length: number;
-  /** Columns can be accessed like an array by numeric indexes. */
-  [index: number]: Value;
+	/** Number of columns in this row.
+	 *
+	 * All rows in one {@link ResultSet} have the same number and names of columns.
+	 */
+	length: number;
+	/** Columns can be accessed like an array by numeric indexes. */
+	[index: number]: Value;
 };
 
 // Mirrors sqlite/conversion.rs in quaint
 function mapDeclType(declType: string | null): ColumnType | null {
-  if (declType === null) {
-    return null;
-  }
+	if (declType === null) {
+		return null;
+	}
 
-  // Normalize the type string by removing length specifiers and extra spaces
-  const normalizedType = declType.toUpperCase().trim();
-  
-  // Handle types with length specifiers (e.g., VARCHAR(255), CHAR(10))
-  const baseType = normalizedType.replace(/\([^)]*\)/, '').trim();
-  
-  switch (baseType) {
-    case "":
-      return null;
-    case "DECIMAL":
-      return ColumnTypeEnum.Numeric;
-    case "FLOAT":
-      return ColumnTypeEnum.Float;
-    case "DOUBLE":
-    case "DOUBLE PRECISION":
-    case "NUMERIC":
-    case "REAL":
-      return ColumnTypeEnum.Double;
-    case "TINYINT":
-    case "TINYINT UNSIGNED":
-    case "SMALLINT":
-    case "SMALLINT UNSIGNED":
-    case "MEDIUMINT":
-    case "MEDIUMINT UNSIGNED":
-    case "INT":
-    case "INT UNSIGNED":
-    case "INTEGER":
-    case "INTEGER UNSIGNED":
-    case "SERIAL":
-    case "INT2":
-      return ColumnTypeEnum.Int32;
-    case "BIGINT":
-    case "BIGINT UNSIGNED":
-    case "UNSIGNED BIG INT":
-    case "INT8":
-      return ColumnTypeEnum.Int64;
-    case "DATETIME":
-    case "TIMESTAMP":
-      return ColumnTypeEnum.DateTime;
-    case "TIME":
-      return ColumnTypeEnum.Time;
-    case "DATE":
-      return ColumnTypeEnum.Date;
-    case "TEXT":
-    case "CLOB":
-    case "CHAR":
-    case "CHARACTER":
-    case "VARCHAR":
-    case "VARYING CHARACTER":
-    case "NCHAR":
-    case "NATIVE CHARACTER":
-    case "NVARCHAR":
-      return ColumnTypeEnum.Text;
-    case "BLOB":
-      return ColumnTypeEnum.Bytes;
-    case "BOOLEAN":
-      return ColumnTypeEnum.Boolean;
-    case "JSON":
-    case "JSONB":
-      return ColumnTypeEnum.Json;
-    default:
-      debug("unknown decltype:", declType);
-      return null;
-  }
+	// Normalize the type string by removing length specifiers and extra spaces
+	const normalizedType = declType.toUpperCase().trim();
+
+	// Handle types with length specifiers (e.g., VARCHAR(255), CHAR(10))
+	const baseType = normalizedType.replace(/\([^)]*\)/, "").trim();
+
+	switch (baseType) {
+		case "":
+			return null;
+		case "DECIMAL":
+			return ColumnTypeEnum.Numeric;
+		case "FLOAT":
+			return ColumnTypeEnum.Float;
+		case "DOUBLE":
+		case "DOUBLE PRECISION":
+		case "NUMERIC":
+		case "REAL":
+			return ColumnTypeEnum.Double;
+		case "TINYINT":
+		case "TINYINT UNSIGNED":
+		case "SMALLINT":
+		case "SMALLINT UNSIGNED":
+		case "MEDIUMINT":
+		case "MEDIUMINT UNSIGNED":
+		case "INT":
+		case "INT UNSIGNED":
+		case "INTEGER":
+		case "INTEGER UNSIGNED":
+		case "SERIAL":
+		case "INT2":
+			return ColumnTypeEnum.Int32;
+		case "BIGINT":
+		case "BIGINT UNSIGNED":
+		case "UNSIGNED BIG INT":
+		case "INT8":
+			return ColumnTypeEnum.Int64;
+		case "DATETIME":
+		case "TIMESTAMP":
+			return ColumnTypeEnum.DateTime;
+		case "TIME":
+			return ColumnTypeEnum.Time;
+		case "DATE":
+			return ColumnTypeEnum.Date;
+		case "TEXT":
+		case "CLOB":
+		case "CHAR":
+		case "CHARACTER":
+		case "VARCHAR":
+		case "VARYING CHARACTER":
+		case "NCHAR":
+		case "NATIVE CHARACTER":
+		case "NVARCHAR":
+			return ColumnTypeEnum.Text;
+		case "BLOB":
+			return ColumnTypeEnum.Bytes;
+		case "BOOLEAN":
+			return ColumnTypeEnum.Boolean;
+		case "JSON":
+		case "JSONB":
+			return ColumnTypeEnum.Json;
+		default:
+			debug("unknown decltype:", declType);
+			return null;
+	}
 }
 
 function mapDeclaredColumnTypes(
-  columnTypes: Array<string | null>,
+	columnTypes: Array<string | null>,
 ): [out: Array<ColumnType | null>, empty: Set<number>] {
-  const emptyIndices = new Set<number>();
-  const result = columnTypes.map((typeName, index) => {
-    const mappedType = mapDeclType(typeName);
-    if (mappedType === null) {
-      emptyIndices.add(index);
-    }
-    return mappedType;
-  });
-  return [result, emptyIndices];
+	const emptyIndices = new Set<number>();
+	const result = columnTypes.map((typeName, index) => {
+		const mappedType = mapDeclType(typeName);
+		if (mappedType === null) {
+			emptyIndices.add(index);
+		}
+		return mappedType;
+	});
+	return [result, emptyIndices];
 }
 
 export function getColumnTypes(
-  declaredTypes: Array<string | null>,
-  rows: Row[],
+	declaredTypes: Array<string | null>,
+	rows: Row[],
 ): ColumnType[] {
-  const [columnTypes, emptyIndices] = mapDeclaredColumnTypes(declaredTypes);
+	const [columnTypes, emptyIndices] = mapDeclaredColumnTypes(declaredTypes);
 
-  if (emptyIndices.size === 0) {
-    return columnTypes as ColumnType[];
-  }
+	if (emptyIndices.size === 0) {
+		return columnTypes as ColumnType[];
+	}
 
-  columnLoop: for (const columnIndex of emptyIndices) {
-    // No declared column type in db schema, infer using first non-null value
-    for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
-      const candidateValue = rows[rowIndex][columnIndex];
-      // Ensure candidateValue is strictly not null and not undefined before inferring.
-      // While the Row type implies it won't be undefined, defensive check is good.
-      if (candidateValue !== null && candidateValue !== undefined) {
-        columnTypes[columnIndex] = inferColumnType(candidateValue);
-        continue columnLoop;
-      }
-    }
+	columnLoop: for (const columnIndex of emptyIndices) {
+		// No declared column type in db schema, infer using first non-null value
+		for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+			const candidateValue = rows[rowIndex][columnIndex];
+			// Ensure candidateValue is strictly not null and not undefined before inferring.
+			// While the Row type implies it won't be undefined, defensive check is good.
+			if (candidateValue !== null && candidateValue !== undefined) {
+				columnTypes[columnIndex] = inferColumnType(candidateValue);
+				continue columnLoop;
+			}
+		}
 
-    // No non-null value found for this column, fall back to Int32 to mimic what quaint does
-    // This case should cover columns where all values are NULL, or unexpectedly undefined.
-    columnTypes[columnIndex] = ColumnTypeEnum.Int32;
-  }
+		// No non-null value found for this column, fall back to Int32 to mimic what quaint does
+		// This case should cover columns where all values are NULL, or unexpectedly undefined.
+		columnTypes[columnIndex] = ColumnTypeEnum.Int32;
+	}
 
-  return columnTypes as ColumnType[];
+	return columnTypes as ColumnType[];
 }
 
 function inferColumnType(value: NonNullable<Value>): ColumnType {
-  switch (typeof value) {
-    case "string":
-      return ColumnTypeEnum.Text;
-    case "bigint":
-      return ColumnTypeEnum.Int64;
-    case "boolean":
-      return ColumnTypeEnum.Boolean;
-    case "number":
-      return ColumnTypeEnum.UnknownNumber;
-    case "object":
-      return inferObjectType(value);
-    default:
-      throw new UnexpectedTypeError(value);
-  }
+	switch (typeof value) {
+		case "string":
+			return ColumnTypeEnum.Text;
+		case "bigint":
+			return ColumnTypeEnum.Int64;
+		case "boolean":
+			return ColumnTypeEnum.Boolean;
+		case "number":
+			return ColumnTypeEnum.UnknownNumber;
+		case "object":
+			return inferObjectType(value);
+		default:
+			throw new UnexpectedTypeError(value);
+	}
 }
 
 function inferObjectType(value: object): ColumnType {
-  // bun:sqlite returns blobs as Uint8Array
-  if (value instanceof Uint8Array) {
-    return ColumnTypeEnum.Bytes;
-  }
-  // The original code had a check for ArrayBuffer, but bun:sqlite consistently returns Uint8Array for BLOBs.
-  // If ArrayBuffer is expected from other contexts, this check might still be useful,
-  // but for direct bun:sqlite results, Uint8Array is the primary type.
-  throw new UnexpectedTypeError(value);
+	// bun:sqlite returns blobs as Uint8Array
+	if (value instanceof Uint8Array) {
+		return ColumnTypeEnum.Bytes;
+	}
+	// The original code had a check for ArrayBuffer, but bun:sqlite consistently returns Uint8Array for BLOBs.
+	// If ArrayBuffer is expected from other contexts, this check might still be useful,
+	// but for direct bun:sqlite results, Uint8Array is the primary type.
+	throw new UnexpectedTypeError(value);
 }
 
 class UnexpectedTypeError extends Error {
-  name = "UnexpectedTypeError";
-  constructor(value: unknown) {
-    const type = typeof value;
-    const repr = type === "object" ? JSON.stringify(value) : String(value);
-    super(`unexpected value of type ${type}: ${repr}`);
-  }
+	name = "UnexpectedTypeError";
+	constructor(value: unknown) {
+		const type = typeof value;
+		const repr = type === "object" ? JSON.stringify(value) : String(value);
+		super(`unexpected value of type ${type}: ${repr}`);
+	}
 }
 
 export function mapRow(row: Row, columnTypes: ColumnType[]): unknown[] {
-  // `Row` doesn't have map, so we copy the array once and modify it in-place
-  // to avoid allocating and copying twice if we used `Array.from(row).map(...)`.
-  const result: unknown[] = Array.from(row);
+	// `Row` doesn't have map, so we copy the array once and modify it in-place
+	// to avoid allocating and copying twice if we used `Array.from(row).map(...)`.
+	const result: unknown[] = Array.from(row);
 
-  for (let i = 0; i < result.length; i++) {
-    const value = result[i];
+	for (let i = 0; i < result.length; i++) {
+		const value = result[i];
 
-    // Convert Uint8Array to arrays of bytes.
-    // bun:sqlite returns blobs as Uint8Array.
-    if (value instanceof Uint8Array) {
-      result[i] = Array.from(value);
-      continue;
-    }
+		// Convert Uint8Array to arrays of bytes.
+		// bun:sqlite returns blobs as Uint8Array.
+		if (value instanceof Uint8Array) {
+			result[i] = Array.from(value);
+			continue;
+		}
 
-    // If an integer is required and the current number isn't one,
-    // discard the fractional part.
-    if (
-      typeof value === "number" &&
-      (columnTypes[i] === ColumnTypeEnum.Int32 ||
-        columnTypes[i] === ColumnTypeEnum.Int64) &&
-      !Number.isInteger(value)
-    ) {
-      result[i] = Math.trunc(value);
-      continue;
-    }
+		// If an integer is required and the current number isn't one,
+		// discard the fractional part.
+		if (
+			typeof value === "number" &&
+			(columnTypes[i] === ColumnTypeEnum.Int32 ||
+				columnTypes[i] === ColumnTypeEnum.Int64) &&
+			!Number.isInteger(value)
+		) {
+			result[i] = Math.trunc(value);
+			continue;
+		}
 
-    // Handle DateTime values - can be numeric timestamps or ISO strings
-    if (columnTypes[i] === ColumnTypeEnum.DateTime) {
-      if (["number", "bigint"].includes(typeof value)) {
-        // Numeric timestamps (native quaint format)
-        result[i] = new Date(Number(value)).toISOString();
-        continue;
-      } else if (typeof value === "string") {
-        // ISO string format (SQLite default DATETIME format)
-        // Handle various SQLite datetime formats:
-        // - "2025-08-20 14:42:26" (DATETIME)
-        // - "2025-08-20T14:42:26.556+00:00" (ISO format)
-        // - "2025-08-20T14:42:26.556Z" (ISO format with Z)
-        const date = new Date(value);
-        if (!isNaN(date.getTime())) {
-          result[i] = date.toISOString();
-        } else {
-          // If it's not a valid date string, leave as is (shouldn't happen)
-          debug("Invalid datetime string:", value);
-          result[i] = value;
-        }
-        continue;
-      }
-    }
+		// Handle DateTime values - can be numeric timestamps or ISO strings
+		if (columnTypes[i] === ColumnTypeEnum.DateTime) {
+			if (["number", "bigint"].includes(typeof value)) {
+				// Numeric timestamps (native quaint format)
+				result[i] = new Date(Number(value)).toISOString();
+				continue;
+			} else if (typeof value === "string") {
+				// ISO string format (SQLite default DATETIME format)
+				// Handle various SQLite datetime formats:
+				// - "2025-08-20 14:42:26" (DATETIME)
+				// - "2025-08-20T14:42:26.556+00:00" (ISO format)
+				// - "2025-08-20T14:42:26.556Z" (ISO format with Z)
+				const date = new Date(value);
+				if (!isNaN(date.getTime())) {
+					result[i] = date.toISOString();
+				} else {
+					// If it's not a valid date string, leave as is (shouldn't happen)
+					debug("Invalid datetime string:", value);
+					result[i] = value;
+				}
+				continue;
+			}
+		}
 
-    // Convert bigint to string as we can only use JSON-encodable types here.
-    if (typeof value === "bigint") {
-      result[i] = value.toString();
-      continue;
-    }
-  }
+		// Convert bigint to string as we can only use JSON-encodable types here.
+		if (typeof value === "bigint") {
+			result[i] = value.toString();
+		}
+	}
 
-  return result;
+	return result;
 }
 
 export function mapQueryArgs(args: unknown[], argTypes: ArgType[]): unknown[] {
-  return args.map((arg, i) => {
-    const argType = argTypes[i];
-    if (argType.scalarType === "int") {
-      return Number.parseInt(arg as string);
-    }
+	return args.map((arg, i) => {
+		const argType = argTypes[i];
+		if (argType.scalarType === "int") {
+			return Number.parseInt(arg as string);
+		}
 
-    if (argType.scalarType === "float" || argType.scalarType === "decimal") {
-      return Number.parseFloat(arg as string);
-    }
+		if (argType.scalarType === "float" || argType.scalarType === "decimal") {
+			return Number.parseFloat(arg as string);
+		}
 
-    if (typeof arg === "boolean") {
-      return arg ? 1 : 0; // SQLite does not natively support booleans
-    }
+		if (typeof arg === "boolean") {
+			return arg ? 1 : 0; // SQLite does not natively support booleans
+		}
 
-    if (arg instanceof Date) {
-      return arg
-        .toISOString()
-        .replace("T", " ")
-        .replace(/\.\d{3}Z$/, "");
-    }
+		if (arg instanceof Date) {
+			return arg
+				.toISOString()
+				.replace("T", " ")
+				.replace(/\.\d{3}Z$/, "");
+		}
 
-    // bun:sqlite expects blobs as Uint8Array
-    if (arg instanceof Uint8Array) {
-      return arg;
-    }
+		// bun:sqlite expects blobs as Uint8Array
+		if (arg instanceof Uint8Array) {
+			return arg;
+		}
 
-    // Convert ArrayBuffer to Uint8Array for blobs, as bun:sqlite works with Uint8Array
-    if (arg instanceof ArrayBuffer) {
-      return new Uint8Array(arg);
-    }
+		// Convert ArrayBuffer to Uint8Array for blobs, as bun:sqlite works with Uint8Array
+		if (arg instanceof ArrayBuffer) {
+			return new Uint8Array(arg);
+		}
 
-    return arg;
-  });
+		return arg;
+	});
 }

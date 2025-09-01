@@ -1,1 +1,4 @@
-export { PrismaBunSQLiteAdapterFactory as PrismaBunSQLite, WALConfig } from './adapter'
+export {
+	PrismaBunSQLiteAdapterFactory as PrismaBunSQLite,
+	WALConfig,
+} from "./adapter.js";
